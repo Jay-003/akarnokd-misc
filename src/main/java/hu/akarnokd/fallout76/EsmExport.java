@@ -1,5 +1,6 @@
 package hu.akarnokd.fallout76;
 
+
 import java.io.*;
 import java.nio.*;
 import java.nio.channels.FileChannel.MapMode;
@@ -9,27 +10,38 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.zip.Inflater;
 
+
 import com.google.gson.*;
 
+
 public final class EsmExport {
+
 
     private EsmExport() {
         // static program
     }
 
+
     static PrintWriter saveIds;
+
 
     static Map<Integer, String> edidMap;
 
+
     static Map<Integer, Integer> descriptionMap;
+
 
     static Set<Integer> usedFormIDs;
 
+
     static Map<Integer, Float> globalValues;
+
 
     static PrintWriter leveledList;
 
+
     static Map<Integer, String> curveTables;
+
 
     static String[] basePaths = {
             "c:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout76\\Data\\",
@@ -37,9 +49,12 @@ public final class EsmExport {
             "e:\\Steam\\steamapps\\common\\Fallout76\\Data\\"
     };
 
+
     static String basePath;
 
+
     public static void main(String[] args) throws Throwable {
+
 
         for (String s : basePaths) {
             File f = new File(s + "SeventySix.esm");
@@ -48,15 +63,19 @@ public final class EsmExport {
             }
         }
 
+
         if (basePath == null) {
             System.err.println("Game not found");
             return;
         }
 
+
         Map<String, Ba2FileEntry> localization = new HashMap<>();
         loadStringsBa2(localization, basePath + "SeventySix - Localization.ba2");
 
+
         Map<Integer, String> descriptionLookup = new HashMap<>(10_000);
+
 
         for (Map.Entry<String, Ba2FileEntry> entry : localization.entrySet()) {
             if (entry.getKey().toLowerCase().endsWith("seventysix_en.strings")) {
@@ -66,8 +85,10 @@ public final class EsmExport {
             }
         }
 
+
         File file = new File(
                 basePath + "SeventySix.esm");
+
 
         edidMap = new HashMap<>(100_000);
         descriptionMap = new HashMap<>(100_000);
@@ -75,22 +96,28 @@ public final class EsmExport {
         globalValues = new HashMap<>(10_000);
         curveTables = new HashMap<>(1000);
 
+
         String lvliFile = basePath + "Dump\\SeventySix_LVLIs.js";
+
 
         leveledList = new PrintWriter(new FileWriter(
                 lvliFile));
         leveledList.println("leveledLists = {");
 
+
         try {
             saveIds = new PrintWriter(new FileWriter(
                     basePath + "Dump\\SeventySix_EDIDs.txt"));
+
 
             try {
                 try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
                     MappedByteBuffer bb = raf.getChannel().map(MapMode.READ_ONLY, 0, raf.length());
                     bb.order(ByteOrder.BIG_ENDIAN);
 
+
                     DataInputByteBuffer buf = new DataInputByteBuffer(bb);
+
 
                     while (buf.position() < raf.length()) {
                         processTopGroups(buf, "LVLI,GLOB,CURV");
@@ -103,12 +130,15 @@ public final class EsmExport {
             leveledList.println("}");
             leveledList.close();
 
+
             // fix the trailing commas
             List<String> lines = Files.readAllLines(Paths.get(lvliFile));
+
 
             for (int i = 0; i < lines.size() - 1; i++) {
                 String line1 = lines.get(i);
                 String line2 = lines.get(i + 1).trim();
+
 
                 if (line1.endsWith(",")
                         && (line2.startsWith("}") || line2.startsWith("]"))) {
@@ -116,8 +146,10 @@ public final class EsmExport {
                 }
             }
 
+
             Files.write(Paths.get(lvliFile), lines);
         }
+
 
         for (Integer id : usedFormIDs) {
             if (!edidMap.containsKey(id)) {
@@ -125,10 +157,13 @@ public final class EsmExport {
             }
         }
 
+
         Map<String, Ba2FileEntry> curveMap = new HashMap<>();
+
 
         loadJsonBa2(curveMap, basePath + "SeventySix - Startup.ba2");
         loadJsonBa2(curveMap, basePath + "SeventySix - MiscClient.ba2");
+
 
         System.out.println("usedFormIDs before: " + usedFormIDs.size());
         System.out.println("EDIDs before: " + edidMap.size());
@@ -136,11 +171,15 @@ public final class EsmExport {
         System.out.println("GLOBs before: " + globalValues.size());
         System.out.println("CURVs before: " + curveTables.size());
 
+
         saveCurvs("_full", curveMap);
+
 
         saveEdids("_full", descriptionLookup);
 
+
         saveGlobs("_full");
+
 
         // remove unneeded references
         edidMap.keySet().retainAll(usedFormIDs);
@@ -152,13 +191,18 @@ public final class EsmExport {
         System.out.println("GLOBs after: " + globalValues.size());
         System.out.println("CURVs after: " + curveTables.size());
 
+
         saveCurvs("", curveMap);
+
 
         saveEdids("", descriptionLookup);
 
+
         saveGlobs("");
 
+
     }
+
 
     static void saveCurvs(String postfix, Map<String, Ba2FileEntry> curveMap) throws IOException {
         try (PrintWriter pw = new PrintWriter(new FileWriter(
@@ -166,6 +210,7 @@ public final class EsmExport {
             pw.println("curves = {");
             for (Map.Entry<Integer, String> e : curveTables.entrySet()) {
                 String ckey = e.getValue().toLowerCase().replace('\\', '/');
+
 
                 Ba2FileEntry ba2Entry = curveMap.get(ckey);
                 if (ba2Entry == null) {
@@ -176,6 +221,7 @@ public final class EsmExport {
                 } else {
                     JsonElement obj = new JsonParser().parse(new String(ba2Entry.data, StandardCharsets.ISO_8859_1));
 
+
                     pw.print("\"");
                     pw.printf("%08X", e.getKey());
                     pw.print("\": ");
@@ -183,10 +229,12 @@ public final class EsmExport {
                     pw.println(",");
                 }
 
+
             }
             pw.println("}");
         }
     }
+
 
     static void saveEdids(String postfix, Map<Integer, String> descriptionLookup) throws IOException {
         try (PrintWriter pw = new PrintWriter(new FileWriter(
@@ -214,6 +262,7 @@ public final class EsmExport {
         }
     }
 
+
     static void saveGlobs(String postfix) throws IOException {
         try (PrintWriter pw = new PrintWriter(new FileWriter(
                 basePath + "Dump\\SeventySix_GLOBs" + postfix + ".js"))) {
@@ -229,31 +278,38 @@ public final class EsmExport {
         }
     }
 
+
     static void loadJsonBa2(Map<String, Ba2FileEntry> curveMap, String ba2FileName) throws IOException {
         Ba2File baf = new Ba2File();
         File curveFiles = new File(ba2FileName);
 
+
         try (RandomAccessFile raf = new RandomAccessFile(curveFiles, "r")) {
             baf.read(raf, name -> name.endsWith("json"));
+
 
             for (Ba2FileEntry e : baf.entries) {
                 curveMap.put(e.name.toLowerCase().replace('\\', '/'), e);
             }
         }
     }
+
 
     static void loadStringsBa2(Map<String, Ba2FileEntry> curveMap, String ba2FileName) throws IOException {
         Ba2File baf = new Ba2File();
         File curveFiles = new File(ba2FileName);
 
+
         try (RandomAccessFile raf = new RandomAccessFile(curveFiles, "r")) {
             baf.read(raf, name -> name.toLowerCase().endsWith("seventysix_en.strings"));
+
 
             for (Ba2FileEntry e : baf.entries) {
                 curveMap.put(e.name.toLowerCase().replace('\\', '/'), e);
             }
         }
     }
+
 
     static String readChars(DataInput din, int count) throws IOException {
         char[] chars = new char[count];
@@ -263,6 +319,7 @@ public final class EsmExport {
         return new String(chars);
     }
 
+
     static String intToChar(int v) {
         return "" + ((char)((v >> 0) & 0xFF))
                 + ((char)((v >> 8) & 0xFF))
@@ -271,7 +328,9 @@ public final class EsmExport {
                 ;
     }
 
+
     static int FLAGS_COMPRESSED = 0x00040000;
+
 
     static void processTopGroups(DataInput din, String filterGroup) throws Exception {
         System.out.println(":---");
@@ -280,12 +339,15 @@ public final class EsmExport {
         int size = Integer.reverseBytes(din.readInt());
         //System.out.printf("Size: %s%n", size);
 
+
         processInnerGroup(din, filterGroup, type, size, "");
     }
+
 
     static double getProgress(DataInput din) throws IOException {
         long fileOffset = 0;
         long len = 1;
+
 
         if (din instanceof RandomAccessFile) {
             fileOffset = ((RandomAccessFile)din).getFilePointer();
@@ -299,10 +361,12 @@ public final class EsmExport {
         return percent;
     }
 
+
     static void processInnerGroup(DataInput din, String filterGroup, String type, int size, String debugPrefix) throws Exception {
         if ("GRUP".equals(type)) {
             int labelOf = Integer.reverseBytes(din.readInt());
             int gtype = Integer.reverseBytes(din.readInt());
+
 
             String groupLabel = "";
             //System.out.printf("%sv-v-v-v-v-v-v-v-v-v%n", debugPrefix);
@@ -310,20 +374,21 @@ public final class EsmExport {
             int logLimit = 6;
             if (gtype == 0) {
                 groupLabel = intToChar(labelOf);
-                /*
-                System.out.printf("%sGroupType: Top%n", debugPrefix, gtype);
-                System.out.printf("%sRecord type: %s%n", debugPrefix, groupLabel);
-                */
+               /*
+               System.out.printf("%sGroupType: Top%n", debugPrefix, gtype);
+               System.out.printf("%sRecord type: %s%n", debugPrefix, groupLabel);
+               */
                 if (debugPrefix.length() < logLimit) {
+
 
                     System.out.printf("%sGRUP (size: %,d) for %s (type: %d) [%.3f%%]%n",
                             debugPrefix, size, groupLabel, gtype, getProgress(din));
                 }
             } else {
-                /*
-                System.out.printf("%sLabel: %08X%n", debugPrefix, labelOf);
-                System.out.printf("%sGroupType: %08X%n", debugPrefix, gtype);
-                */
+               /*
+               System.out.printf("%sLabel: %08X%n", debugPrefix, labelOf);
+               System.out.printf("%sGroupType: %08X%n", debugPrefix, gtype);
+               */
                 if (debugPrefix.length() < logLimit) {
                     System.out.printf("%sGRUP (size: %,d) for %08X (type: %d) [%.3f%%]%n",
                             debugPrefix, size, labelOf, gtype, getProgress(din));
@@ -332,7 +397,9 @@ public final class EsmExport {
             // skip version control and unknown
             din.skipBytes(8);
 
+
             // data starts here
+
 
             if (groupLabel.equals("aaaa")) {
 //            if (!groupLabel.equals("WRLD") && debugPrefix.length() == 0) {
@@ -342,6 +409,7 @@ public final class EsmExport {
                 if (!groupLabel.isEmpty() && (filterGroup == null || filterGroup.contains(groupLabel))) {
                     try (PrintWriter save = new PrintWriter(new FileWriter(
                             basePath + "Dump\\SeventySix_" + groupLabel + ".txt"))) {
+
 
                         int offset = 0;
                         while (offset < size - 24) {
@@ -355,6 +423,7 @@ public final class EsmExport {
                     }
                 }
             }
+
 
             //System.out.printf("%s^-^-^-^-^-^-^-^-^-^%n", debugPrefix);
         } else {
@@ -371,46 +440,54 @@ public final class EsmExport {
         }
     }
 
+
     static int processRecords(DataInput din, PrintWriter save, String filterGroup, String debugPrefix) throws Exception {
         String type = readChars(din, 4);
         int size = Integer.reverseBytes(din.readInt());
+
 
         if (type.equals("GRUP")) {
             processInnerGroup(din, filterGroup, type, size, debugPrefix + "  ");
             return size;
         }
 
+
         int flags = Integer.reverseBytes(din.readInt());
         boolean isCompressed = (flags & FLAGS_COMPRESSED) != 0;
         int id = Integer.reverseBytes(din.readInt());
 
-        /*
+
+       /*
 //        if (type.equals("WRLD") || type.equals("CELL"))
-        {
-            System.out.printf("%s%s record (size: %d): %08X%s%n", debugPrefix, type, size, id, isCompressed ? "  compressed" : "");
-        }
-        */
-        /*
-        System.out.println("   ---");
-        System.out.printf("   Type: %s%n", type);
-        System.out.printf("   Size: %s%n", size);
-        System.out.printf("   Flags: %08X%n", flags);
-        if (isCompressed) {
-            System.out.println("       Compressed");
-        }
-        System.out.printf("   ID: %08X%n", id);
-        */
+       {
+           System.out.printf("%s%s record (size: %d): %08X%s%n", debugPrefix, type, size, id, isCompressed ? "  compressed" : "");
+       }
+       */
+       /*
+       System.out.println("   ---");
+       System.out.printf("   Type: %s%n", type);
+       System.out.printf("   Size: %s%n", size);
+       System.out.printf("   Flags: %08X%n", flags);
+       if (isCompressed) {
+           System.out.println("       Compressed");
+       }
+       System.out.printf("   ID: %08X%n", id);
+       */
+
 
         // skip version control and unknown
         din.skipBytes(8);
+
 
         if (save != null) {
             save.printf("%s %08X %d%n", type, id, flags);
         }
 
+
         if (type.equals("LVLI")) {
             usedFormIDs.add(id);
         }
+
 
         int propertySize = size;
         DataInput fieldInput = din;
@@ -422,8 +499,10 @@ public final class EsmExport {
             byte[] inputbuf = new byte[size - 4];
             din.readFully(inputbuf);
 
+
             Inflater inflater = new Inflater();
             inflater.setInput(inputbuf);
+
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream(decompressSize);
             byte[] buffer = new byte[1024];
@@ -434,14 +513,18 @@ public final class EsmExport {
             outputStream.close();
             byte[] output = outputStream.toByteArray();
 
+
             fieldInput = new DataInputStream(new ByteArrayInputStream(output));
+
 
             // data starts here
             //din.skipBytes(size);
             propertySize = output.length;
         }
 
+
         List<FieldEntry> fieldList = processFields(fieldInput, propertySize);
+
 
         for (FieldEntry fe : fieldList) {
             //System.out.printf("      + %s%n", fe.asString(type));
@@ -455,6 +538,7 @@ public final class EsmExport {
             if (fe.type.equals("FULL")) {
                 descriptionMap.putIfAbsent(id, fe.getAsObjectID());
             }
+
 
             if (type.equals("LVLI")) {
                 if ("LVLO".equals(fe.type) && fe.data.length == 12) {
@@ -477,8 +561,10 @@ public final class EsmExport {
             }
         }
 
+
         if (type.equals("LVLI")) {
             leveledList.printf("\"%08X\": {%n", id);
+
 
             int listcount = 0;
             boolean conditionMode = false;
@@ -486,13 +572,16 @@ public final class EsmExport {
             boolean hasEntl = false;
             boolean hadList = false;
 
+
             for (int i = 0; i < fieldList.size(); i++) {
                 FieldEntry fe = fieldList.get(i);
+
 
                 if (listcount == 0 && conditionMode && !"CTDA".equals(fe.type)) {
                     conditionMode = false;
                     leveledList.printf("    ],%n");
                 }
+
 
                 if ("LLCT".equals(fe.type)) {
                     listcount = fe.data[0];
@@ -569,6 +658,7 @@ public final class EsmExport {
                         leveledList.printf("  ],%n");
                     }
 
+
                     switch (fe.type) {
                         case "LVMG":
                         case "LVMT":
@@ -580,6 +670,7 @@ public final class EsmExport {
                         case "LVCV": {
                             float fv = fe.getAsFloat();
 
+
                             // don't add default-zero entries
                             if (fv != 0.0f) {
                                 leveledList.printf(Locale.US, "  \"%s\": %f,%n", fe.type, fv);
@@ -590,6 +681,7 @@ public final class EsmExport {
                             if (fe.data.length != 0 && fe.data[0] != 0) {
                                 leveledList.printf(Locale.US, "  \"%s\": %d,%n", "LVCV", fe.data[0]);
                             }
+
 
                             break;
                         }
@@ -628,6 +720,7 @@ public final class EsmExport {
                 }
             }
 
+
             if (!hasEntl) {
                 if (hadList) {
                     if (conditionMode) {
@@ -643,13 +736,17 @@ public final class EsmExport {
                 }
             }
 
+
             leveledList.printf("},%n");
         }
+
 
         return size + 24;
     }
 
+
     static void addCTDA(String prefix, FieldEntry fe) {
+
 
         leveledList.printf("%s    {%n", prefix);
         leveledList.printf("%s      \"Operator\": %d,%n", prefix, fe.data[0]);
@@ -663,33 +760,38 @@ public final class EsmExport {
         leveledList.printf("%s      \"Function\": %d,%n", prefix, findex);
         leveledList.printf("%s      \"FunctionName\": \"%s\",%n", prefix, FUNCTION_MAP.get(findex));
 
+
         int p1 = toInt(fe.data[12], fe.data[13], fe.data[14], fe.data[15]);
         leveledList.printf("%s      \"Param1Ref\": \"%08X\",%n", prefix, p1);
         leveledList.printf(Locale.US, "%s      \"Param1Value\": %s,%n", prefix, Float.intBitsToFloat(p1));
+
 
         int p2 = toInt(fe.data[16], fe.data[17], fe.data[18], fe.data[19]);
         leveledList.printf("%s      \"Param2Ref\": \"%08X\",%n", prefix, p2);
         leveledList.printf(Locale.US, "%s      \"Param2Value\": %s,%n", prefix, Float.intBitsToFloat(p2));
 
+
         switch (fe.data[20]) {
-        case 0: {
-            leveledList.printf("%s      \"RunOn\": \"Subject\"%n", prefix);
-            break;
+            case 0: {
+                leveledList.printf("%s      \"RunOn\": \"Subject\"%n", prefix);
+                break;
+            }
+            case 1: {
+                leveledList.printf("%s      \"RunOn\": \"Target\"%n", prefix);
+                break;
+            }
+            case 2: {
+                leveledList.printf("%s      \"RunOn\": \"Ref\",%n", prefix);
+                int rf = toInt(fe.data[24], fe.data[25], fe.data[26], fe.data[27]);
+                leveledList.printf("%s      \"RunOnRef\": \"%08X\"%n", prefix, rf);
+                break;
+            }
         }
-        case 1: {
-            leveledList.printf("%s      \"RunOn\": \"Target\"%n", prefix);
-            break;
-        }
-        case 2: {
-            leveledList.printf("%s      \"RunOn\": \"Ref\",%n", prefix);
-            int rf = toInt(fe.data[24], fe.data[25], fe.data[26], fe.data[27]);
-            leveledList.printf("%s      \"RunOnRef\": \"%08X\"%n", prefix, rf);
-            break;
-        }
-        }
+
 
         leveledList.printf("%s    },%n", prefix);
     }
+
 
     static void findEntry(List<FieldEntry> list, String entry, PrintWriter out, BiConsumer<FieldEntry, PrintWriter> handler) {
         for (FieldEntry fe : list) {
@@ -699,6 +801,7 @@ public final class EsmExport {
         }
     }
 
+
     static List<FieldEntry> processFields(DataInput din, int size) throws IOException {
         int offset = 0;
         List<FieldEntry> result = new ArrayList<>();
@@ -706,6 +809,7 @@ public final class EsmExport {
             try {
                 String ftype = readChars(din, 4);
                 int fsize = din.readUnsignedByte() + din.readUnsignedByte() * 256;
+
 
                 if (fsize == 0) {
                     if (result.size() > 0) {
@@ -715,6 +819,7 @@ public final class EsmExport {
                         }
                     }
                 }
+
 
                 byte[] data = new byte[fsize];
                 din.readFully(data);
@@ -728,6 +833,7 @@ public final class EsmExport {
         return result;
     }
 
+
     static final class FieldEntry {
         final String type;
         final byte[] data;
@@ -736,143 +842,147 @@ public final class EsmExport {
             this.data = data;
         }
 
+
         @Override
         public java.lang.String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append(type).append(": ");
             switch (type) {
-            case "EDID":
-            case "CNAM":
-            case "DNAM":
-            case "SNAM":
-            case "FULL":
-                sb.append(String.format("%08X", getAsObjectID()));
-                break;
-            case "LLCT": {
-                sb.append(data[0]);
-                break;
-            }
-            case "LVLO": {
-                if (data.length == 4) {
-                    sb.append(String.format("%08X (object)", getAsObjectID()));
-                } else {
-                    sb.append(String.format("%08X (object)%n", getAsObjectID(4)));
-                    sb.append(String.format(Locale.US, "  %s: %d", "LVOV", data[10]));
-                    sb.append(String.format(Locale.US, "  %s: %d", "LVIV", getAsShort(8)));
-                    sb.append(String.format(Locale.US, "  %s: %d", "LVLV", getAsShort(0)));
+                case "EDID":
+                case "CNAM":
+                case "DNAM":
+                case "SNAM":
+                case "FULL":
+                    sb.append(String.format("%08X", getAsObjectID()));
+                    break;
+                case "LLCT": {
+                    sb.append(data[0]);
+                    break;
                 }
-                break;
-            }
-            case "LVOG": {
-                sb.append(String.format("%08X (global)", getAsObjectID()));
-                break;
-            }
-            case "LVOC": {
-                sb.append(String.format("%08X (global)", getAsObjectID()));
-                break;
-            }
-            // epic chance global
-            case "LVSG": {
-                sb.append(String.format("%08X (global)", getAsObjectID()));
-                break;
-            }
-            // chance none global
-            case "LVLG": {
-                sb.append(String.format("%08X (global)", getAsObjectID()));
-                break;
-            }
-            case "LVOT": {
-                sb.append(String.format("%08X (curve)", getAsObjectID()));
-                break;
-            }
-            // chance none value
-            case "LVCV":
-            case "LVOV":
-            case "LVMV":
-            case "LVIV":
-            case "LVLV":
-            case "FLTV":
-                sb.append(String.format("%.5f", getAsFloat()));
-                break;
-            case "LVLF": {
-                int f = 0;
-                if (data.length >= 1) {
-                    f = data[0];
+                case "LVLO": {
+                    if (data.length == 4) {
+                        sb.append(String.format("%08X (object)", getAsObjectID()));
+                    } else {
+                        sb.append(String.format("%08X (object)%n", getAsObjectID(4)));
+                        sb.append(String.format(Locale.US, "  %s: %d", "LVOV", data[10]));
+                        sb.append(String.format(Locale.US, "  %s: %d", "LVIV", getAsShort(8)));
+                        sb.append(String.format(Locale.US, "  %s: %d", "LVLV", getAsShort(0)));
+                    }
+                    break;
                 }
-                if (data.length >= 2) {
-                    f += (data[1] & 0xFF) * 256;
+                case "LVOG": {
+                    sb.append(String.format("%08X (global)", getAsObjectID()));
+                    break;
                 }
-                sb.append(String.format("%04X", f));
-                if ((f & 1) != 0) {
-                    sb.append(String.format(" +level"));
+                case "LVOC": {
+                    sb.append(String.format("%08X (global)", getAsObjectID()));
+                    break;
                 }
-                if ((f & 2) != 0) {
-                    sb.append(String.format(" +each"));
+                // epic chance global
+                case "LVSG": {
+                    sb.append(String.format("%08X (global)", getAsObjectID()));
+                    break;
                 }
-                if ((f & 4) != 0) {
-                    sb.append(String.format(" +all"));
+                // chance none global
+                case "LVLG": {
+                    sb.append(String.format("%08X (global)", getAsObjectID()));
+                    break;
                 }
-                if ((f & 8) != 0) {
-                    sb.append(String.format(" +u3"));
+                case "LVOT": {
+                    sb.append(String.format("%08X (curve)", getAsObjectID()));
+                    break;
                 }
-                if ((f & 16) != 0) {
-                    sb.append(String.format(" +refspawn"));
+                // chance none value
+                case "LVCV":
+                case "LVOV":
+                case "LVMV":
+                case "LVIV":
+                case "LVLV":
+                case "FLTV":
+                    sb.append(String.format("%.5f", getAsFloat()));
+                    break;
+                case "LVLF": {
+                    int f = 0;
+                    if (data.length >= 1) {
+                        f = data[0];
+                    }
+                    if (data.length >= 2) {
+                        f += (data[1] & 0xFF) * 256;
+                    }
+                    sb.append(String.format("%04X", f));
+                    if ((f & 1) != 0) {
+                        sb.append(String.format(" +level"));
+                    }
+                    if ((f & 2) != 0) {
+                        sb.append(String.format(" +each"));
+                    }
+                    if ((f & 4) != 0) {
+                        sb.append(String.format(" +all"));
+                    }
+                    if ((f & 8) != 0) {
+                        sb.append(String.format(" +u3"));
+                    }
+                    if ((f & 16) != 0) {
+                        sb.append(String.format(" +refspawn"));
+                    }
+                    if ((f & 32) != 0) {
+                        sb.append(String.format(" +u5"));
+                    }
+                    if ((f & 64) != 0) {
+                        sb.append(String.format(" +first-match-all-cond"));
+                    }
+                    if ((f & 128) != 0) {
+                        sb.append(String.format(" +u7"));
+                    }
+                    break;
                 }
-                if ((f & 32) != 0) {
-                    sb.append(String.format(" +u5"));
+           /*
+           case "CTDA": {
+               printConditionData(sb);
+               break;
+           }
+           */
+                default: {
+                    for (byte b : data) {
+                        sb.append(String.format("%02X", b));
+                    }
                 }
-                if ((f & 64) != 0) {
-                    sb.append(String.format(" +first-match-all-cond"));
-                }
-                if ((f & 128) != 0) {
-                    sb.append(String.format(" +u7"));
-                }
-                break;
-            }
-            /*
-            case "CTDA": {
-                printConditionData(sb);
-                break;
-            }
-            */
-            default: {
-                for (byte b : data) {
-                    sb.append(String.format("%02X", b));
-                }
-            }
             }
             return sb.toString();
         }
 
+
         String asString(String parentType) {
             String result = "";
             switch (type) {
-            case "EDID": {
-                result = "EDID: " + getZString();
-                break;
-            }
-            case "CNAM": {
-                if (!parentType.equals("KYWD")) {
-                    result = "CNAM: " + getZString();
+                case "EDID": {
+                    result = "EDID: " + getZString();
+                    break;
                 }
-                break;
-            }
-            case "DNAM": {
-                result = "DNAM: " + getZString();
-                break;
-            }
-            case "SNAM": {
-                result = "SNAM: " + getZString();
-                break;
-            }
-            default:
-                result = type + " (" + data.length + ")";
+                case "CNAM": {
+                    if (!parentType.equals("KYWD")) {
+                        result = "CNAM: " + getZString();
+                    }
+                    break;
+                }
+                case "DNAM": {
+                    result = "DNAM: " + getZString();
+                    break;
+                }
+                case "SNAM": {
+                    result = "SNAM: " + getZString();
+                    break;
+                }
+                default:
+                    result = type + " (" + data.length + ")";
             }
             return result;
         }
 
+
         void printBinary(PrintWriter out, String parentType) {
             out.printf("  %s (%d): ", type, data.length);
+
 
             switch (type) {
                 case "EDID": {
@@ -989,24 +1099,30 @@ public final class EsmExport {
             out.println();
         }
 
+
         float getAsFloat() {
             return Float.intBitsToFloat(getAsObjectID());
         }
+
 
         int getAsObjectID() {
             return getAsObjectID(0);
         }
 
+
         int getAsObjectID(int offset) {
             return toInt(data[offset + 0], data[offset + 1], data[offset + 2], data[offset + 3]);
         }
+
 
         int getAsShort(int offset) {
             return toInt(data[offset + 0], data[offset + 1]);
         }
 
+
         List<Integer> getConditionObjectIDs() {
             List<Integer> result = new ArrayList<>();
+
 
             // global flag
             if ((data[0] & 4) != 0) {
@@ -1017,39 +1133,42 @@ public final class EsmExport {
             // param 2
             result.add(toInt(data[16], data[17], data[18], data[19]));
 
+
             // run on: reference
             if (data[20] == 2) {
                 result.add(toInt(data[24], data[25], data[26], data[27]));
             }
 
+
             return result;
         }
+
 
         void printConditionData(PrintWriter out) {
             out.println();
             out.printf("    Operator:");
             int optype = (data[0] & 0xFF) >> 5;
             switch (optype) {
-            case 0:
-                out.printf(" ==");
-                break;
-            case 1:
-                out.printf(" !=");
-                break;
-            case 2:
-                out.printf(" >");
-                break;
-            case 3:
-                out.printf(" >=");
-                break;
-            case 4:
-                out.printf(" <");
-                break;
-            case 5:
-                out.printf(" <=");
-                break;
-            default:
-                out.printf(" %d ???", optype);
+                case 0:
+                    out.printf(" ==");
+                    break;
+                case 1:
+                    out.printf(" !=");
+                    break;
+                case 2:
+                    out.printf(" >");
+                    break;
+                case 3:
+                    out.printf(" >=");
+                    break;
+                case 4:
+                    out.printf(" <");
+                    break;
+                case 5:
+                    out.printf(" <=");
+                    break;
+                default:
+                    out.printf(" %d ???", optype);
             }
             if ((data[0] & 1) == 0) {
                 out.printf(" AND");
@@ -1078,6 +1197,7 @@ public final class EsmExport {
             out.printf("    Param1: %08X%n", toInt(data[12], data[13], data[14], data[15]));
             out.printf("    Param2: %08X%n", toInt(data[16], data[17], data[18], data[19]));
 
+
             out.print("    RunOn: ");
             switch (data[20]) {
                 case 0: {
@@ -1097,19 +1217,23 @@ public final class EsmExport {
             }
         }
 
+
         String getZString() {
             return new String(data, 0, data.length - 1, StandardCharsets.ISO_8859_1);
         }
     }
+
 
     static int toInt(byte b1, byte b2, byte b3, byte b4) {
         return (b1 & 0xFF) + ((b2 & 0xFF) << 8)
                 + ((b3 & 0xFF) << 16) + ((b4 & 0xFF) << 24);
     }
 
+
     static int toInt(byte b1, byte b2) {
         return (b1 & 0xFF) + ((b2 & 0xFF) << 8);
     }
+
 
     static final Map<Integer, String> FUNCTION_MAP = new HashMap<>();
     static {
@@ -1119,11 +1243,13 @@ public final class EsmExport {
         FUNCTION_MAP.put(4639, "GetQuestCompleted");
         FUNCTION_MAP.put(4675, "EditorLocationHasKeyword");
 
+
         FUNCTION_MAP.put(4544, "HasPerk");
         FUNCTION_MAP.put(4165, "GetIsRace");
         FUNCTION_MAP.put(4176, "GetLevel");
         FUNCTION_MAP.put(4154, "GetStage");
         FUNCTION_MAP.put(4659, "LocationHasRefType");
+
 
         FUNCTION_MAP.put(4110, "GetActorValue");
         FUNCTION_MAP.put(4143, "GetItemCount");
@@ -1131,11 +1257,13 @@ public final class EsmExport {
         FUNCTION_MAP.put(4101, "GetLocked");
         FUNCTION_MAP.put(4161, "GetLockLevel");
 
+
         FUNCTION_MAP.put(4168, "GetIsID");
         FUNCTION_MAP.put(4455, "GetInCurrentLoc");
         FUNCTION_MAP.put(4657, "HasRefType");
         FUNCTION_MAP.put(4097, "GetDistance");
         FUNCTION_MAP.put(4278, "GetEquipped");
+
 
         FUNCTION_MAP.put(4661, "GetIsEditorLocation");
         FUNCTION_MAP.put(4266, "GetDayOfWeek");
@@ -1143,11 +1271,13 @@ public final class EsmExport {
         FUNCTION_MAP.put(4949, "HasLearnedRecipe");
         FUNCTION_MAP.put(4971, "IsTrueForConditionForm");
 
+
         FUNCTION_MAP.put(4945, "GetIsInRegion");
         FUNCTION_MAP.put(4953, "GetNumTimesCompletedQuest");
         FUNCTION_MAP.put(4933, "IsActivePlayer");
         FUNCTION_MAP.put(4994, "GetWorldType");
         FUNCTION_MAP.put(4942, "GetActorValueForCurrentLocation");
+
 
         FUNCTION_MAP.put(4929, "GetStageDoneUniqueQuest");
         FUNCTION_MAP.put(4950, "HasActiveMagicEffect");
@@ -1156,6 +1286,7 @@ public final class EsmExport {
         FUNCTION_MAP.put(9100, "PlayerHasQuest");
     }
 
+
     static final Set<String> OBJECT_FIELDS = new HashSet<>(Arrays.asList(
             "LVLO", // object ref
             "LVOG", // minimum level global ref
@@ -1163,7 +1294,9 @@ public final class EsmExport {
             "LVOT", // omission curve table
             "LVIG", // quantity global
 
+
             "LVSG", // epic chance global ref
+
 
             "LVLG", // list omission global
             "LVCT",  // list omission curve table
@@ -1171,6 +1304,7 @@ public final class EsmExport {
             "LVMG", // list max global
             "LVMT" // list max curve table
     ));
+
 
     static final Set<String> IGNORE_FIELDS = new HashSet<>(Arrays.asList(
             "OBND", "ONAM", "ENLT", "ENLS", "AUUV"

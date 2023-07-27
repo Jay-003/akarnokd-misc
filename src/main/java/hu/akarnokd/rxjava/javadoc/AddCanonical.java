@@ -1,5 +1,6 @@
 package hu.akarnokd.rxjava.javadoc;
 
+
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -7,18 +8,29 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
+
 /**
  * Add "link rel='canonical' to the javadoc htmls of RxJava 1"
  */
 public final class AddCanonical {
 
+
     private AddCanonical() { }
+
 
     static final Map<String, String> canonicals = new HashMap<>();
 
+
     static void init() {
-        // ----------------------------------------------------------------------------------
+        Map<String, String> canonicals = createCanonicalsMap();
+        checkCanonicalsConnectivity(canonicals);
+        AddCanonical.canonicals.putAll(canonicals);
+    }
+
+
+    static Map<String, String> createCanonicalsMap() {
         Map<String, String> canonicals = new HashMap<>();
+
 
         canonicals.put("/rx/Observable.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Flowable.html");
@@ -33,7 +45,9 @@ public final class AddCanonical {
         canonicals.put("/rx/Emitter.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/FlowableEmitter.html");
 
+
         // ----------------------------------------------------------------------------------
+
 
         canonicals.put("/rx/Observer.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Observer.html");
@@ -41,6 +55,7 @@ public final class AddCanonical {
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/disposables/Disposable.html");
         canonicals.put("/rx/Notification.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Notification.html");
+
 
         canonicals.put("/rx/Scheduler.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Scheduler.html");
@@ -57,6 +72,7 @@ public final class AddCanonical {
         canonicals.put("/rx/scheduler/TrampolineScheduler.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/schedulers/Schedulers.html#trampoline%28%29");
 
+
         canonicals.put("/rx/plugins/RxJavaPlugins.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/plugins/RxJavaPlugins.html");
         canonicals.put("/rx/plugins/RxJavaHooks.html",
@@ -70,22 +86,28 @@ public final class AddCanonical {
         canonicals.put("/rx/plugins/RxJavaSchedulersHook.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/plugins/RxJavaPlugins.html");
 
+
         canonicals.put("/rx/BackpressureOverflow.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/BackpressureOverflowStrategy.html");
         canonicals.put("/rx/BackpressureOverflow.Strategy.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/BackpressureOverflowStrategy.html");
 
+
         canonicals.put("/rx/Emitter.BackpressureMode.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/BackpressureStrategy.html");
+
 
         canonicals.put("/rx/Producer.html",
                 "http://www.reactive-streams.org/reactive-streams-1.0.0-javadoc/org/reactivestreams/Subscription.html");
 
+
         canonicals.put("/rx/annotations/Beta.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/annotations/Beta.html");
 
+
         canonicals.put("/rx/annotations/Experimental.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/annotations/Experimental.html");
+
 
         canonicals.put("/rx/exceptions/Exceptions.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/exceptions/Exceptions.html");
@@ -95,6 +117,7 @@ public final class AddCanonical {
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/exceptions/MissingBackpressureException.html");
         canonicals.put("/rx/exceptions/OnErrorNotImplementedException.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/exceptions/OnErrorNotImplementedException.html");
+
 
         canonicals.put("/rx/functions/Action0.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/functions/Action.html");
@@ -106,6 +129,7 @@ public final class AddCanonical {
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/functions/Consumer.html");
         canonicals.put("/rx/functions/Cancellable.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/functions/Cancellable.html");
+
 
         canonicals.put("/rx/functions/Func0.html",
                 "https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Callable.html");
@@ -130,6 +154,7 @@ public final class AddCanonical {
         canonicals.put("/rx/functions/FuncN.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/functions/Function.html");
 
+
         canonicals.put("/rx/observables/ConnectableObservable.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/flowables/ConnectableFlowable.html");
         canonicals.put("/rx/observables/GroupedObservable.html",
@@ -137,8 +162,10 @@ public final class AddCanonical {
         canonicals.put("/rx/observables/BlockingObservable.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Flowable.html#blockingIterable%28%29");
 
+
         canonicals.put("/rx/observables/SyncOnSubscribe.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/FlowableEmitter.html");
+
 
         canonicals.put("/rx/observers/TestObserver.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/observers/TestObserver.html");
@@ -153,6 +180,7 @@ public final class AddCanonical {
         canonicals.put("/rx/observers/SerializedSubscriber.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/subscribers/SerializedSubscriber.html");
 
+
         canonicals.put("/rx/subjects/AsyncSubject.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/processors/AsyncProcessor.html");
         canonicals.put("/rx/subjects/PublishSubject.html",
@@ -165,6 +193,7 @@ public final class AddCanonical {
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/processors/UnicastProcessor.html");
         canonicals.put("/rx/subjects/SerializedSubject.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/processors/FlowableProcessor.html#toSerialized%28%29");
+
 
         canonicals.put("/rx/subscriptions/BooleanSubscription.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/disposables/Disposable.html#empty%28%29");
@@ -179,7 +208,9 @@ public final class AddCanonical {
         canonicals.put("/rx/subscriptions/Subscriptions.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/disposables/Disposable.html");
 
+
         // ----------------------------------------------------------------------------------
+
 
         canonicals.put("/rx/Single.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Single.html");
@@ -196,7 +227,9 @@ public final class AddCanonical {
         canonicals.put("/rx/singles/BlockingSingle.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Single.html#blockingGet%28%29");
 
+
         // ----------------------------------------------------------------------------------
+
 
         canonicals.put("/rx/Completable.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/Completable.html");
@@ -211,13 +244,20 @@ public final class AddCanonical {
         canonicals.put("/rx/CompletableSubscriber.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/CompletableObserver.html");
 
+
         // ----------------------------------------------------------------------------------
 
+
+        return canonicals;
+    }
+
+
+    static void checkCanonicalsConnectivity(Map<String, String> canonicals) {
         int failed = 0;
-        for (String urls : canonicals.values()) {
-            System.out.print("Checking: " + urls);
+        for (String url : canonicals.values()) {
+            System.out.print("Checking: " + url);
             try {
-                URL u = new URL(urls);
+                URL u = new URL(url);
                 u.openStream().close();
                 System.out.println(" -> Success");
                 Thread.sleep(100);
@@ -227,10 +267,10 @@ public final class AddCanonical {
             }
         }
 
+
         if (failed != 0) {
-            throw new RuntimeException("Some url's don't connect!: " + failed);
+            throw new RuntimeException("Some URLs don't connect!: " + failed);
         }
-        AddCanonical.canonicals.putAll(canonicals);
     }
 
 
@@ -238,10 +278,13 @@ public final class AddCanonical {
         Map<String, String> canonicals = new HashMap<>();
         // ----------------------------------------------------------------------------------
 
+
         canonicals.put("/io/reactivex/disposables/Disposables.html",
                 "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/disposables/Disposable.html");
 
+
         // ----------------------------------------------------------------------------------
+
 
         int failed = 0;
         for (String urls : canonicals.values()) {
@@ -257,14 +300,17 @@ public final class AddCanonical {
             }
         }
 
+
         if (failed != 0) {
             throw new RuntimeException("Some url's don't connect!: " + failed);
         }
         AddCanonical.canonicals.putAll(canonicals);
     }
 
+
     static Set<String> reachable = new HashSet<>();
     static Set<String> unreachable = new HashSet<>();
+
 
     static boolean checkAndCacheURL(String url) {
         if (reachable.contains(url)) {
@@ -287,34 +333,42 @@ public final class AddCanonical {
         }
     }
 
+
     static void process(File directory, String prefix) throws IOException {
         Files.walkFileTree(directory.toPath(), new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+
 
                 String name = file.toString().replace('\\', '/');
                 if (name.endsWith(".html")) {
                     int idx = name.indexOf(prefix);
                     String relevantPart = name.substring(idx);
 
+
                     String canonical = canonicals.get(relevantPart);
+
 
                     if (canonical != null) {
                         appendLink(file, canonical);
                     }
                 }
 
+
                 return FileVisitResult.CONTINUE;
             }
         });
     }
 
+
     static byte[] alreadyThere = "<link rel=\"canonical\"".getBytes(StandardCharsets.ISO_8859_1);
     static byte[] linkEnd = "/>".getBytes(StandardCharsets.ISO_8859_1);
     static byte[] endHead = "</head>".getBytes(StandardCharsets.ISO_8859_1);
 
+
     static void appendLink(Path file, String url) throws IOException {
         byte[] data = Files.readAllBytes(file);
+
 
         int existing = arrayIndexOf(data, alreadyThere, 0);
         if (existing != -1) {
@@ -331,6 +385,7 @@ public final class AddCanonical {
             System.out.printf("Adding link %s to file %s.%n", url, file);
             byte[] toInsert = ("<link rel=\"canonical\" href=\"" + url + "\"/>").getBytes(StandardCharsets.ISO_8859_1);
 
+
             byte[] newData = new byte[data.length + toInsert.length];
             System.arraycopy(data, 0, newData, 0, endHeadIndex);
             System.arraycopy(toInsert, 0, newData, endHeadIndex, toInsert.length);
@@ -338,6 +393,7 @@ public final class AddCanonical {
             Files.write(file, newData);
         }
     }
+
 
     static int arrayIndexOf(byte[] source, byte[] toFind, int start) {
         outer:
@@ -354,25 +410,30 @@ public final class AddCanonical {
         return -1;
     }
 
+
     static void process2x(File directory) throws IOException {
         Files.walkFileTree(directory.toPath(), new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+
 
                 String name = file.toString().replace('\\', '/');
                 if (name.endsWith(".html")) {
                     int idx = name.indexOf("/io/reactivex/");
                     String relevantPart = name.substring(idx);
 
+
                     String canonical = canonicals.get(relevantPart);
                     if (canonical == null) {
                         relevantPart = name.substring(idx + 14);
+
 
                         if (relevantPart.contains("/")) {
                             canonical = "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/" + relevantPart;
                         } else {
                             canonical = "http://reactivex.io/RxJava/3.x/javadoc/io/reactivex/rxjava3/core/" + relevantPart;
                         }
+
 
                         if (!checkAndCacheURL(canonical)) {
                             return FileVisitResult.CONTINUE;
@@ -381,10 +442,12 @@ public final class AddCanonical {
                     appendLink(file, canonical);
                 }
 
+
                 return FileVisitResult.CONTINUE;
             }
         });
     }
+
 
     public static void main(String[] args) throws IOException {
 //        init();
@@ -394,5 +457,6 @@ public final class AddCanonical {
 //        process2x(new File("..\\RxJava\\2.x\\javadoc\\io\\reactivex\\"));
         process2x(new File("..\\RxJava\\javadoc\\io\\reactivex\\"));
     }
+
 
 }
