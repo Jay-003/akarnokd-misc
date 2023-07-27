@@ -1,6 +1,5 @@
 package hu.akarnokd.fallout76;
 
-
 import java.io.*;
 import java.nio.*;
 import java.nio.channels.FileChannel.MapMode;
@@ -8,11 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
-
-
 import com.google.gson.*;
-
 
 public final class EsmExport {
 
@@ -71,7 +68,7 @@ public final class EsmExport {
 
 
         Map<String, Ba2FileEntry> localization = new HashMap<>();
-        loadStringsBa2(localization, basePath + "SeventySix - Localization.ba2");
+        EsmExportHelper.loadStringsBa2(localization, basePath + "SeventySix - Localization.ba2");
 
 
         Map<Integer, String> descriptionLookup = new HashMap<>(10_000);
@@ -295,20 +292,7 @@ public final class EsmExport {
     }
 
 
-    static void loadStringsBa2(Map<String, Ba2FileEntry> curveMap, String ba2FileName) throws IOException {
-        Ba2File baf = new Ba2File();
-        File curveFiles = new File(ba2FileName);
 
-
-        try (RandomAccessFile raf = new RandomAccessFile(curveFiles, "r")) {
-            baf.read(raf, name -> name.toLowerCase().endsWith("seventysix_en.strings"));
-
-
-            for (Ba2FileEntry e : baf.entries) {
-                curveMap.put(e.name.toLowerCase().replace('\\', '/'), e);
-            }
-        }
-    }
 
 
     static String readChars(DataInput din, int count) throws IOException {
@@ -340,7 +324,7 @@ public final class EsmExport {
         //System.out.printf("Size: %s%n", size);
 
 
-        processInnerGroup(din, filterGroup, type, size, "");
+        EsmExportHelper.processInnerGroup(din, filterGroup, type, size, "");
     }
 
 
@@ -362,170 +346,87 @@ public final class EsmExport {
     }
 
 
-    static void processInnerGroup(DataInput din, String filterGroup, String type, int size, String debugPrefix) throws Exception {
-        if ("GRUP".equals(type)) {
-            int labelOf = Integer.reverseBytes(din.readInt());
-            int gtype = Integer.reverseBytes(din.readInt());
 
 
-            String groupLabel = "";
-            //System.out.printf("%sv-v-v-v-v-v-v-v-v-v%n", debugPrefix);
-            //System.out.printf("%sSize: %d%n", debugPrefix, size);
-            int logLimit = 6;
-            if (gtype == 0) {
-                groupLabel = intToChar(labelOf);
-               /*
-               System.out.printf("%sGroupType: Top%n", debugPrefix, gtype);
-               System.out.printf("%sRecord type: %s%n", debugPrefix, groupLabel);
-               */
-                if (debugPrefix.length() < logLimit) {
 
 
-                    System.out.printf("%sGRUP (size: %,d) for %s (type: %d) [%.3f%%]%n",
-                            debugPrefix, size, groupLabel, gtype, getProgress(din));
-                }
-            } else {
-               /*
-               System.out.printf("%sLabel: %08X%n", debugPrefix, labelOf);
-               System.out.printf("%sGroupType: %08X%n", debugPrefix, gtype);
-               */
-                if (debugPrefix.length() < logLimit) {
-                    System.out.printf("%sGRUP (size: %,d) for %08X (type: %d) [%.3f%%]%n",
-                            debugPrefix, size, labelOf, gtype, getProgress(din));
-                }
+
+    static void hadList(boolean conditionMode, boolean hadList) {
+        if (hadList) {
+            if (conditionMode) {
+                conditionMode = false;
+                leveledList.printf("      ],%n");
             }
-            // skip version control and unknown
-            din.skipBytes(8);
-
-
-            // data starts here
-
-
-            if (groupLabel.equals("aaaa")) {
-//            if (!groupLabel.equals("WRLD") && debugPrefix.length() == 0) {
-//            if (groupLabel.equals("CELL") || groupLabel.equals("WRLD")) {
-                din.skipBytes(size - 24);
-            } else {
-                if (!groupLabel.isEmpty() && (filterGroup == null || filterGroup.contains(groupLabel))) {
-                    try (PrintWriter save = new PrintWriter(new FileWriter(
-                            basePath + "Dump\\SeventySix_" + groupLabel + ".txt"))) {
-
-
-                        int offset = 0;
-                        while (offset < size - 24) {
-                            offset += processRecords(din, save, filterGroup, debugPrefix);
-                        }
-                    }
-                } else {
-                    int offset = 0;
-                    while (offset < size - 24) {
-                        offset += processRecords(din, null, filterGroup, debugPrefix);
-                    }
-                }
-            }
-
-
-            //System.out.printf("%s^-^-^-^-^-^-^-^-^-^%n", debugPrefix);
-        } else {
-            int flags = Integer.reverseBytes(din.readInt());
-            System.out.printf("Flags: %08X%n", flags);
-            if ((flags & FLAGS_COMPRESSED) != 0) {
-                System.out.println("       Compressed");
-            }
-            System.out.printf("ID: %08X%n", Integer.reverseBytes(din.readInt()));
-            // skip version control and unknown
-            din.skipBytes(8);
-            // data starts here
-            din.skipBytes(size);
+            leveledList.printf("    },%n");
+            leveledList.printf("  ],%n");
+        }
+        if (conditionMode) {
+            conditionMode = false;
+            leveledList.printf("  ],%n");
         }
     }
 
-
-    static int processRecords(DataInput din, PrintWriter save, String filterGroup, String debugPrefix) throws Exception {
-        String type = readChars(din, 4);
-        int size = Integer.reverseBytes(din.readInt());
-
-
-        if (type.equals("GRUP")) {
-            processInnerGroup(din, filterGroup, type, size, debugPrefix + "  ");
-            return size;
+    static boolean isConditionMode(boolean conditionMode, FieldEntry fe) {
+        if (conditionMode && !"CTDA".equals(fe.type)) {
+            conditionMode = false;
+            leveledList.printf("  ],%n");
         }
 
 
-        int flags = Integer.reverseBytes(din.readInt());
-        boolean isCompressed = (flags & FLAGS_COMPRESSED) != 0;
-        int id = Integer.reverseBytes(din.readInt());
+        processLeveledListData(fe);
 
-
-       /*
-//        if (type.equals("WRLD") || type.equals("CELL"))
-       {
-           System.out.printf("%s%s record (size: %d): %08X%s%n", debugPrefix, type, size, id, isCompressed ? "  compressed" : "");
-       }
-       */
-       /*
-       System.out.println("   ---");
-       System.out.printf("   Type: %s%n", type);
-       System.out.printf("   Size: %s%n", size);
-       System.out.printf("   Flags: %08X%n", flags);
-       if (isCompressed) {
-           System.out.println("       Compressed");
-       }
-       System.out.printf("   ID: %08X%n", id);
-       */
-
-
-        // skip version control and unknown
-        din.skipBytes(8);
-
-
-        if (save != null) {
-            save.printf("%s %08X %d%n", type, id, flags);
-        }
-
-
-        if (type.equals("LVLI")) {
-            usedFormIDs.add(id);
-        }
-
-
-        int propertySize = size;
-        DataInput fieldInput = din;
-        if (isCompressed) {
-            int decompressSize = Integer.reverseBytes(din.readInt());
-            if (size < 0) {
-                System.err.println("wtf? " + ((RandomAccessFile)din).getFilePointer());
+        if ("CTDA".equals(fe.type)) {
+            if (!conditionMode) {
+                conditionMode = true;
+                leveledList.printf("  \"Conditions\": [%n");
             }
-            byte[] inputbuf = new byte[size - 4];
-            din.readFully(inputbuf);
-
-
-            Inflater inflater = new Inflater();
-            inflater.setInput(inputbuf);
-
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream(decompressSize);
-            byte[] buffer = new byte[1024];
-            while (!inflater.finished()) {
-                int count = inflater.inflate(buffer);
-                outputStream.write(buffer, 0, count);
-            }
-            outputStream.close();
-            byte[] output = outputStream.toByteArray();
-
-
-            fieldInput = new DataInputStream(new ByteArrayInputStream(output));
-
-
-            // data starts here
-            //din.skipBytes(size);
-            propertySize = output.length;
+            addCTDA("", fe);
         }
+        return conditionMode;
+    }
+
+    private static void processLeveledListData(FieldEntry fe) {
+        switch (fe.type) {
+            case "LVMG":
+            case "LVMT":
+            case "LVLG":
+            case "LVCT":
+                leveledList.printf("  \"%s\": \"%08X\",%n", fe.type, fe.getAsObjectID());
+                break;
+            case "LVMV":
+            case "LVCV": {
+                float fv = fe.getAsFloat();
 
 
-        List<FieldEntry> fieldList = processFields(fieldInput, propertySize);
+                // don't add default-zero entries
+                if (fv != 0.0f) {
+                    leveledList.printf(Locale.US, "  \"%s\": %f,%n", fe.type, fv);
+                }
+                break;
+            }
+            case "LVLD": {
+                if (fe.data.length != 0 && fe.data[0] != 0) {
+                    leveledList.printf(Locale.US, "  \"%s\": %d,%n", "LVCV", fe.data[0]);
+                }
 
 
+                break;
+            }
+            case "LVLF": {
+                int f = 0;
+                if (fe.data.length >= 1) {
+                    f = fe.data[0];
+                }
+                if (fe.data.length >= 2) {
+                    f += (fe.data[1] & 0xFF) * 256;
+                }
+                leveledList.print(String.format("  \"%s\": %d,%n", fe.type, f));
+                break;
+            }
+        }
+    }
+
+    static void processAndExtractFieldEntries(PrintWriter save, String type, int id, List<FieldEntry> fieldList) {
         for (FieldEntry fe : fieldList) {
             //System.out.printf("      + %s%n", fe.asString(type));
             if (save != null) {
@@ -560,188 +461,30 @@ public final class EsmExport {
                 }
             }
         }
+    }
 
-
-        if (type.equals("LVLI")) {
-            leveledList.printf("\"%08X\": {%n", id);
-
-
-            int listcount = 0;
-            boolean conditionMode = false;
-            boolean once = false;
-            boolean hasEntl = false;
-            boolean hadList = false;
-
-
-            for (int i = 0; i < fieldList.size(); i++) {
-                FieldEntry fe = fieldList.get(i);
-
-
-                if (listcount == 0 && conditionMode && !"CTDA".equals(fe.type)) {
-                    conditionMode = false;
-                    leveledList.printf("    ],%n");
-                }
-
-
-                if ("LLCT".equals(fe.type)) {
-                    listcount = fe.data[0];
-                    leveledList.printf("  \"Entries\": [%n");
-                    hadList = listcount != 0;
-                    continue;
-                }
-                if (listcount != 0) {
-                    if (conditionMode && !"CTDA".equals(fe.type)) {
-                        conditionMode = false;
-                        leveledList.printf("      ],%n");
-                    }
-                    switch (fe.type) {
-                        case "LVLO":
-                            if (once) {
-                                leveledList.printf("    },%n");
-                            }
-                            once = true;
-                            leveledList.printf("    {%n");
-                            if (fe.data.length == 4) {
-                                leveledList.printf("      \"Object\": \"%08X\",%n", fe.getAsObjectID());
-                            } else {
-                                leveledList.printf("      \"Object\": \"%08X\",%n", fe.getAsObjectID(4));
-                                if (fe.data[10] > 0) {
-                                    leveledList.printf(Locale.US, "      \"%s\": %d,%n", "LVOV", fe.data[10]);
-                                }
-                                if (fe.getAsShort(8) > 1) {
-                                    leveledList.printf(Locale.US, "      \"%s\": %d,%n", "LVIV", fe.getAsShort(8));
-                                }
-                                if (fe.getAsShort(0) > 1) {
-                                    leveledList.printf(Locale.US, "      \"%s\": %d,%n", "LVLV", fe.getAsShort(0));
-                                }
-                            }
-                            break;
-                        case "LVOV": { // omission chance value
-                            float fv = fe.getAsFloat();
-                            if (fv > 0.0f) {
-                                leveledList.printf(Locale.US, "      \"%s\": %f,%n", fe.type, fv);
-                            }
-                            break;
-                        }
-                        case "LVIV": { // quantity
-                            float fv = fe.getAsFloat();
-                            if (fv > 1.0f) {
-                                leveledList.printf(Locale.US, "      \"%s\": %f,%n", fe.type, fv);
-                            }
-                            break;
-                        }
-                        case "LVLV": { // min level, 0-1 has no relevant meaning here
-                            float fv = fe.getAsFloat();
-                            if (fv > 1.0f) {
-                                leveledList.printf(Locale.US, "      \"%s\": %f,%n", fe.type, fv);
-                            }
-                            break;
-                        }
-                        case "LVOC":
-                        case "LVOT":
-                        case "LVIG":
-                        case "LVOG":
-                        case "LVLT":
-                            leveledList.printf(Locale.US, "      \"%s\": \"%08X\",%n", fe.type, fe.getAsObjectID());
-                            break;
-                    }
-                    if ("CTDA".equals(fe.type)) {
-                        if (!conditionMode) {
-                            conditionMode = true;
-                            leveledList.printf("      \"Conditions\": [%n");
-                        }
-                        addCTDA("      ", fe);
-                    }
-                } else {
-                    if (conditionMode && !"CTDA".equals(fe.type)) {
-                        conditionMode = false;
-                        leveledList.printf("  ],%n");
-                    }
-
-
-                    switch (fe.type) {
-                        case "LVMG":
-                        case "LVMT":
-                        case "LVLG":
-                        case "LVCT":
-                            leveledList.printf("  \"%s\": \"%08X\",%n", fe.type, fe.getAsObjectID());
-                            break;
-                        case "LVMV":
-                        case "LVCV": {
-                            float fv = fe.getAsFloat();
-
-
-                            // don't add default-zero entries
-                            if (fv != 0.0f) {
-                                leveledList.printf(Locale.US, "  \"%s\": %f,%n", fe.type, fv);
-                            }
-                            break;
-                        }
-                        case "LVLD": {
-                            if (fe.data.length != 0 && fe.data[0] != 0) {
-                                leveledList.printf(Locale.US, "  \"%s\": %d,%n", "LVCV", fe.data[0]);
-                            }
-
-
-                            break;
-                        }
-                        case "LVLF": {
-                            int f = 0;
-                            if (fe.data.length >= 1) {
-                                f = fe.data[0];
-                            }
-                            if (fe.data.length >= 2) {
-                                f += (fe.data[1] & 0xFF) * 256;
-                            }
-                            leveledList.print(String.format("  \"%s\": %d,%n", fe.type, f));
-                            break;
-                        }
-                    }
-                    if ("CTDA".equals(fe.type)) {
-                        if (!conditionMode) {
-                            conditionMode = true;
-                            leveledList.printf("  \"Conditions\": [%n");
-                        }
-                        addCTDA("", fe);
-                    }
-                }
-                if ("ENLT".equals(fe.type)) {
-                    if (conditionMode) {
-                        conditionMode = false;
-                        leveledList.printf("      ],%n");
-                    }
-                    listcount = 0;
-                    if (hadList) {
-                        leveledList.printf("    },%n");
-                        leveledList.printf("  ],%n");
-                    }
-                    hasEntl = true;
-                    break;
-                }
-            }
-
-
-            if (!hasEntl) {
-                if (hadList) {
-                    if (conditionMode) {
-                        conditionMode = false;
-                        leveledList.printf("      ],%n");
-                    }
-                    leveledList.printf("    },%n");
-                    leveledList.printf("  ],%n");
-                }
-                if (conditionMode) {
-                    conditionMode = false;
-                    leveledList.printf("  ],%n");
-                }
-            }
-
-
-            leveledList.printf("},%n");
+    static byte[] getBytes(DataInput din, int size) throws IOException, DataFormatException {
+        int decompressSize = Integer.reverseBytes(din.readInt());
+        if (size < 0) {
+            System.err.println("wtf? " + ((RandomAccessFile) din).getFilePointer());
         }
+        byte[] inputbuf = new byte[size - 4];
+        din.readFully(inputbuf);
 
 
-        return size + 24;
+        Inflater inflater = new Inflater();
+        inflater.setInput(inputbuf);
+
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(decompressSize);
+        byte[] buffer = new byte[1024];
+        while (!inflater.finished()) {
+            int count = inflater.inflate(buffer);
+            outputStream.write(buffer, 0, count);
+        }
+        outputStream.close();
+        byte[] output = outputStream.toByteArray();
+        return output;
     }
 
 
@@ -758,7 +501,7 @@ public final class EsmExport {
         }
         int findex = toInt(fe.data[8], fe.data[9]) + 4096;
         leveledList.printf("%s      \"Function\": %d,%n", prefix, findex);
-        leveledList.printf("%s      \"FunctionName\": \"%s\",%n", prefix, FUNCTION_MAP.get(findex));
+        leveledList.printf("%s      \"FunctionName\": \"%s\",%n", prefix, FunctionMapping.FUNCTION_MAP.get(findex));
 
 
         int p1 = toInt(fe.data[12], fe.data[13], fe.data[14], fe.data[15]);
@@ -980,6 +723,52 @@ public final class EsmExport {
         }
 
 
+
+
+
+        float getAsFloat() {
+            return Float.intBitsToFloat(getAsObjectID());
+        }
+
+
+        int getAsObjectID() {
+            return getAsObjectID(0);
+        }
+
+
+        int getAsObjectID(int offset) {
+            return toInt(data[offset + 0], data[offset + 1], data[offset + 2], data[offset + 3]);
+        }
+
+
+        int getAsShort(int offset) {
+            return toInt(data[offset + 0], data[offset + 1]);
+        }
+
+
+        List<Integer> getConditionObjectIDs() {
+            List<Integer> result = new ArrayList<>();
+
+
+            // global flag
+            if ((data[0] & 4) != 0) {
+                result.add(toInt(data[4], data[5], data[6], data[7]));
+            }
+            // param 1
+            result.add(toInt(data[12], data[13], data[14], data[15]));
+            // param 2
+            result.add(toInt(data[16], data[17], data[18], data[19]));
+
+
+            // run on: reference
+            if (data[20] == 2) {
+                result.add(toInt(data[24], data[25], data[26], data[27]));
+            }
+
+
+            return result;
+        }
+
         void printBinary(PrintWriter out, String parentType) {
             out.printf("  %s (%d): ", type, data.length);
 
@@ -1099,51 +888,6 @@ public final class EsmExport {
             out.println();
         }
 
-
-        float getAsFloat() {
-            return Float.intBitsToFloat(getAsObjectID());
-        }
-
-
-        int getAsObjectID() {
-            return getAsObjectID(0);
-        }
-
-
-        int getAsObjectID(int offset) {
-            return toInt(data[offset + 0], data[offset + 1], data[offset + 2], data[offset + 3]);
-        }
-
-
-        int getAsShort(int offset) {
-            return toInt(data[offset + 0], data[offset + 1]);
-        }
-
-
-        List<Integer> getConditionObjectIDs() {
-            List<Integer> result = new ArrayList<>();
-
-
-            // global flag
-            if ((data[0] & 4) != 0) {
-                result.add(toInt(data[4], data[5], data[6], data[7]));
-            }
-            // param 1
-            result.add(toInt(data[12], data[13], data[14], data[15]));
-            // param 2
-            result.add(toInt(data[16], data[17], data[18], data[19]));
-
-
-            // run on: reference
-            if (data[20] == 2) {
-                result.add(toInt(data[24], data[25], data[26], data[27]));
-            }
-
-
-            return result;
-        }
-
-
         void printConditionData(PrintWriter out) {
             out.println();
             out.printf("    Operator:");
@@ -1189,11 +933,11 @@ public final class EsmExport {
                 out.printf("    Float value: %.5f%n", Float.intBitsToFloat(val));
             }
             int findex = toInt(data[8], data[9]) + 4096;
-            if (!FUNCTION_MAP.containsKey(findex)) {
+            if (!FunctionMapping.FUNCTION_MAP.containsKey(findex)) {
                 System.err.println("Unknown function: " + findex + " (" + (findex - 4096) + ")");
-                FUNCTION_MAP.put(findex, "Unknown");
+                FunctionMapping.FUNCTION_MAP.put(findex, "Unknown");
             }
-            out.printf("    Function: %d (%s)%n", findex, FUNCTION_MAP.get(findex));
+            out.printf("    Function: %d (%s)%n", findex, FunctionMapping.FUNCTION_MAP.get(findex));
             out.printf("    Param1: %08X%n", toInt(data[12], data[13], data[14], data[15]));
             out.printf("    Param2: %08X%n", toInt(data[16], data[17], data[18], data[19]));
 
@@ -1232,58 +976,6 @@ public final class EsmExport {
 
     static int toInt(byte b1, byte b2) {
         return (b1 & 0xFF) + ((b2 & 0xFF) << 8);
-    }
-
-
-    static final Map<Integer, String> FUNCTION_MAP = new HashMap<>();
-    static {
-        FUNCTION_MAP.put(4778, "WornHasKeyword");
-        FUNCTION_MAP.put(4173, "GetRandomPercent");
-        FUNCTION_MAP.put(4170, "GetGlobalValue");
-        FUNCTION_MAP.put(4639, "GetQuestCompleted");
-        FUNCTION_MAP.put(4675, "EditorLocationHasKeyword");
-
-
-        FUNCTION_MAP.put(4544, "HasPerk");
-        FUNCTION_MAP.put(4165, "GetIsRace");
-        FUNCTION_MAP.put(4176, "GetLevel");
-        FUNCTION_MAP.put(4154, "GetStage");
-        FUNCTION_MAP.put(4659, "LocationHasRefType");
-
-
-        FUNCTION_MAP.put(4110, "GetActorValue");
-        FUNCTION_MAP.put(4143, "GetItemCount");
-        FUNCTION_MAP.put(4656, "HasKeyword");
-        FUNCTION_MAP.put(4101, "GetLocked");
-        FUNCTION_MAP.put(4161, "GetLockLevel");
-
-
-        FUNCTION_MAP.put(4168, "GetIsID");
-        FUNCTION_MAP.put(4455, "GetInCurrentLoc");
-        FUNCTION_MAP.put(4657, "HasRefType");
-        FUNCTION_MAP.put(4097, "GetDistance");
-        FUNCTION_MAP.put(4278, "GetEquipped");
-
-
-        FUNCTION_MAP.put(4661, "GetIsEditorLocation");
-        FUNCTION_MAP.put(4266, "GetDayOfWeek");
-        FUNCTION_MAP.put(4955, "HasEntitlement");
-        FUNCTION_MAP.put(4949, "HasLearnedRecipe");
-        FUNCTION_MAP.put(4971, "IsTrueForConditionForm");
-
-
-        FUNCTION_MAP.put(4945, "GetIsInRegion");
-        FUNCTION_MAP.put(4953, "GetNumTimesCompletedQuest");
-        FUNCTION_MAP.put(4933, "IsActivePlayer");
-        FUNCTION_MAP.put(4994, "GetWorldType");
-        FUNCTION_MAP.put(4942, "GetActorValueForCurrentLocation");
-
-
-        FUNCTION_MAP.put(4929, "GetStageDoneUniqueQuest");
-        FUNCTION_MAP.put(4950, "HasActiveMagicEffect");
-        FUNCTION_MAP.put(4884, "LocationHasPlayerOwnedWorkshop");
-        FUNCTION_MAP.put(4396, "IsInInterior");
-        FUNCTION_MAP.put(9100, "PlayerHasQuest");
     }
 
 
